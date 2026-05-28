@@ -103,7 +103,7 @@ WYRIWE is the **Input Trust Layer** — layer 3 in the four-layer AI inference t
 |---|---|
 | **ERC-8263** | WYRIWE is the formal input-provenance profile for the `proofHash` construction; `input_hash` is the canonical shared key |
 | **ERC-8274** | `IProofVerifier.verify(modelHash, inputHash, outputHash, proof)` — `inputHash` is WYRIWE's `input_hash`; `proof` encodes the full attestation struct |
-| **ERC-8183** | Outcome envelope `intent` field SHOULD equal the WYRIWE `input_hash` committed at job funding time |
+| **ERC-8183** | Outcome envelope `commitmentRef` field maps to WYRIWE's `input_hash` committed at job funding time; §11 reserves the producer-facing disposition shape without fixing field names |
 | **ERC-8004** | `agentId` in the attestation struct is the ERC-8004 agent identity anchor |
 | **OCP** | WYRIWE attestation is the concrete input-commitment profile that OCP proof envelopes can carry |
 
