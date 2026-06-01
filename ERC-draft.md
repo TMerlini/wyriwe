@@ -97,9 +97,11 @@ The EIP-712 domain separator for WYRIWE attestations is:
 EIP712Domain({
     name:    "ERC8004AttestationGateway",
     version: "1",
-    chainId: 1
+    chainId: block.chainid
 })
 ```
+
+`chainId` MUST use the chain ID of the network on which the attestation is produced (`block.chainid` in Solidity). A hardcoded value is NOT permitted — doing so prevents the domain separator from distinguishing attestations produced on different chains and breaks replay protection in multi-chain deployments.
 
 The `l4_signature` is an `eth_sign` signature over the EIP-712 digest of the `WyriweAttestation` struct, produced by the gateway attestor.
 
