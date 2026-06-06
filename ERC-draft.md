@@ -261,6 +261,12 @@ WYRIWE commits to the *hash* of the input, not the input itself. The raw input a
 
 ---
 
+## Acknowledgements
+
+- **Jimmy Shi** — first external implementation of WYRIWE: WyriweVerifier for ERC-8274, wrapping the triple-hash scheme as an `IProofVerifier`. Technical corrections to `inputHash` derivation (not keccak of the two hashes), `ATTESTATION_TYPEHASH` field names (`manifestHash→modelHash`, `agentId uint256→bytes32`, `timestamp uint64→uint256`), and `block.chainid` dynamic requirement.
+
+---
+
 ## Copyright
 
 Copyright and related rights waived via [CC0](../LICENSE.md).
