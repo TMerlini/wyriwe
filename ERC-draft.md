@@ -2,29 +2,31 @@
 eip: XXXX
 title: WYRIWE — What You Read Is What You Execute
 description: An input-provenance commitment scheme and attestation profile for verifiable AI agent inference
-author: Tiago Merlini (@TMerlini)
+author: Tiago Merlini (@TMerlini), Vincent Wu (@vincent-wu-eth), Damon Zwicker (@damonzwicker)
 discussions-to: https://ethereum-magicians.org/t/wyriwe-what-you-read-is-what-you-execute-input-provenance-for-verifiable-ai-inference/28655
 status: Draft
 type: Standards Track
 category: ERC
 created: 2026-05-28
-requires: 712
+requires: 712, 8004
 ---
 
 ## Abstract
 
-This ERC defines a triple-hash commitment scheme and EIP-712 attestation profile for proving that the input a model received is the input the user intended. It introduces three linked fields — `raw_input_hash`, `sanitization_pipeline_hash`, and `input_hash` — that together form a verifiable chain of custody for AI inference inputs. A verifier can confirm input integrity using only the committed hashes and the public sanitization specification, without trusting the agent, gateway, or execution environment. This standard occupies layer 3 of the AI inference trust stack, complementing ERC-8004 (agent identity) and ERC-8263 / OCP (execution attestation).
+This ERC defines a triple-hash commitment scheme and EIP-712 attestation profile for proving that the input a model received is the input the user intended. It introduces three linked fields — `raw_input_hash`, `sanitization_pipeline_hash`, and `input_hash` — that together form a verifiable chain of custody for AI inference inputs. A verifier can confirm input integrity using only the committed hashes and the public sanitization specification, without trusting the agent, gateway, or execution environment. This standard occupies the input-provenance layer of the AI inference trust stack, complementing ERC-8004 (agent identity), ERC-8126 (agent verification), and ERC-8263 / OCP (execution attestation).
 
 ---
 
 ## Motivation
 
-On-chain AI agent systems built on standards such as ERC-8004, ERC-8263, and ERC-8274 can attest to which model ran and what output was produced, but no standard defines how to commit to the *input* before inference. This creates a trust gap: an agent may sanitize, rewrite, or substitute the user's input between request submission and model execution, leaving no on-chain evidence of the transformation.
+On-chain AI agent systems built on standards such as ERC-8004, ERC-8126, ERC-8263, and ERC-8274 can attest to which agent is registered, which model ran, and what output was produced — but no standard defines how to commit to the *input* before inference. This creates a trust gap: an agent may sanitize, rewrite, or substitute the user's input between request submission and model execution, leaving no on-chain evidence of the transformation.
+
+ERC-8126 (AI Agent Verification, Final) addresses the question "Is this agent trustworthy?" via risk scores and verification registries. It deliberately leaves the execution receipt layer out of scope — what the agent actually processed in a specific invocation. WYRIWE closes that gap.
 
 Without a committed input record:
 - A settlement contract cannot verify that the delivered output corresponds to the funded input.
-- A proof verifier (e.g. an `IProofVerifier` implementation) cannot confirm the `inputHash` it receives matches what was originally requested.
-- A dispute resolution mechanism has no ground truth for what the model was actually asked to do.
+- A proof verifier (e.g. an `IProofVerifier` implementation per ERC-8274) cannot confirm the `inputHash` it receives matches what was originally requested.
+- A dispute resolution mechanism (e.g. ERC-8275 `CommitRevealSettler`) has no ground truth for what the model was actually asked to do.
 
 WYRIWE (What You Read Is What You Execute) closes this gap by defining a minimal, hash-based commitment that any compliant gateway MUST produce at execution time and that any verifier can check independently.
 
@@ -151,6 +153,10 @@ Linking attestations to an ERC-8004 agent identity makes the attestation attribu
 
 Using a null or zero value for `sanitization_pipeline_hash` in the no-sanitization case would make it ambiguous whether the field was intentionally omitted or a transform was applied but not committed. The sentinel makes the no-sanitization case explicit, auditable, and verifiable on equal footing with sanitized cases.
 
+### Relationship to ERC-8126
+
+ERC-8126 (AI Agent Verification, Final) defines risk scores and verification registries that answer "Is this agent trustworthy?" WYRIWE is complementary, not overlapping: it answers "What did this agent actually process in this invocation?" The two standards compose naturally — ERC-8126 establishes agent-level trust, WYRIWE establishes execution-level provenance. A settlement contract may require both: the agent must be verified (ERC-8126) AND the input commitment must match the funded request (WYRIWE).
+
 ---
 
 ## Backwards Compatibility
@@ -210,7 +216,12 @@ Example query:
 https://gateway.ensub.org/agent/verify/758d61f26a44448384e5c4468a0dcb7a2abe456067b0f7b505bc28b9411fe931
 ```
 
-Source code: https://github.com/Echo-Merlini/hbs-attestation-poc
+Source code: https://github.com/Echo-Merlini/ccip-router
+
+**External implementations:**
+- WyriweVerifier (Jimmy Shi) — `IProofVerifier` wrapper for ERC-8274: https://ethereum-magicians.org/t/erc-8274-ai-inference-proof-verification/28083
+- WyriweProofVerifier (mainnet): `0xd8a09d830b27697e1b24e8c9800e562d20318a09`
+- WyriweAttestationVerifier (mainnet): referenced in ccip-router npm package
 
 ---
 
@@ -235,6 +246,18 @@ The `timestamp` field in `WyriweAttestation` is informational and does not preve
 ### Input availability
 
 WYRIWE commits to the *hash* of the input, not the input itself. The raw input and sanitized input are not published by this standard. Parties who need to reproduce verification MUST retain the original inputs off-chain. WYRIWE does not define an input storage or retrieval mechanism.
+
+---
+
+## References
+
+- [ERC-8004](https://ethereum-magicians.org/t/erc-8004-trustless-agents/25098) — Verified Node Identity (agent identity layer)
+- [ERC-8126](https://eips.ethereum.org/EIPS/eip-8126) — AI Agent Verification (Final)
+- [ERC-8263](https://ethereum-magicians.org/t/erc-8263) — Onchain Proof Layer for AI Agents (Vincent Wu)
+- [ERC-8274](https://ethereum-magicians.org/t/erc-8274-ai-inference-proof-verification/28083) — AI Inference Proof Verification (Jimmy Shi)
+- [ERC-8275](https://ethereum-magicians.org/t/erc-8275-agent-service-discovery-and-escrow-payments/28622) — Mesh Node Compensation (Panini)
+- [ERC-8281 / OCP](https://github.com/damonzwicker/observation-commitment-protocol) — Observation Commitment Protocol (Damon Zwicker)
+- [OCP Composition Note](https://gist.github.com/damonzwicker/8742e742bdc627b8e2179c00b81289dc) — L3+L4 AI inference attestation profile
 
 ---
 
