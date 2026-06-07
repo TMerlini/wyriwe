@@ -2,7 +2,7 @@
 eip: XXXX
 title: WYRIWE — What You Read Is What You Execute
 description: An input-provenance commitment scheme and attestation profile for verifiable AI agent inference
-author: Tiago Merlini (@TMerlini), Vincent Wu (@vincent-wu-eth), Damon Zwicker (@damonzwicker), Jimmy Shi (@jimmyshi03)
+author: Tiago Merlini (@TMerlini), Vincent Wu (@vincent-wu-eth), Damon Zwicker (@damonzwicker), Jimmy Shi (@JimmyShi22)
 discussions-to: https://ethereum-magicians.org/t/wyriwe-what-you-read-is-what-you-execute-input-provenance-for-verifiable-ai-inference/28655
 status: Draft
 type: Standards Track
