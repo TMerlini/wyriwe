@@ -2,7 +2,7 @@
 eip: XXXX
 title: WYRIWE — What You Read Is What You Execute
 description: An input-provenance commitment scheme and attestation profile for verifiable AI agent inference
-author: Tiago Merlini (@TMerlini), Vincent Wu (@vincent-wu-eth), Damon Zwicker (@damonzwicker)
+author: Tiago Merlini (@TMerlini), Vincent Wu (@vincent-wu-eth), Damon Zwicker (@damonzwicker), Jimmy Shi (@jimmyshi03)
 discussions-to: https://ethereum-magicians.org/t/wyriwe-what-you-read-is-what-you-execute-input-provenance-for-verifiable-ai-inference/28655
 status: Draft
 type: Standards Track
@@ -263,7 +263,7 @@ WYRIWE commits to the *hash* of the input, not the input itself. The raw input a
 
 ## Acknowledgements
 
-- **Jimmy Shi** — first external implementation of WYRIWE: WyriweVerifier for ERC-8274, wrapping the triple-hash scheme as an `IProofVerifier`. Technical corrections to `inputHash` derivation (not keccak of the two hashes), `ATTESTATION_TYPEHASH` field names (`manifestHash→modelHash`, `agentId uint256→bytes32`, `timestamp uint64→uint256`), and `block.chainid` dynamic requirement.
+- **Jimmy Shi** — first external implementation of WYRIWE: WyriweVerifier for ERC-8274, wrapping the triple-hash scheme as an `IProofVerifier`. Co-author contributions include technical corrections to `inputHash` derivation (not keccak of the two hashes), `ATTESTATION_TYPEHASH` field names (`manifestHash→modelHash`, `agentId uint256→bytes32`, `timestamp uint64→uint256`), and `block.chainid` dynamic requirement.
 
 ---
 
