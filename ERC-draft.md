@@ -91,6 +91,10 @@ struct WyriweAttestation {
 
 All fields are REQUIRED. A conforming attestation MUST populate every field. `agentId` and `registry` MAY be zero-valued if the execution environment does not implement ERC-8004, but MUST NOT be omitted from the struct.
 
+**ERC-8274 claim classification:** A `WyriweAttestation` is an `attestation`-class claim. In ERC-8274 terminology, the corresponding `IProofVerifier` SHOULD return `proofSystem() = "attestation/wyriwe"`. When wrapped in an ERC-8274 outer claim container, `claimType` SHOULD be set to `Attestation`. The EIP-712 type string acts as the on-chain schema discriminator; `claimType` serves off-chain consumers (indexers, explorers, dispute interfaces) that read the raw signed struct without calling the verifier contract.
+
+Note: `modelHash` commits to the model weights or manifest — what model ran. This is distinct from a TEE `codeMeasurement`, which commits to the execution environment. WYRIWE operates at the input-provenance layer, not the execution environment layer. For execution environment attestations, see ERC-8274 `tee/*` proof systems.
+
 ### 4. EIP-712 Domain
 
 The EIP-712 domain separator for WYRIWE attestations is:
@@ -263,7 +267,9 @@ WYRIWE commits to the *hash* of the input, not the input itself. The raw input a
 
 ## Acknowledgements
 
-- **Jimmy Shi** — first external implementation of WYRIWE: WyriweVerifier for ERC-8274, wrapping the triple-hash scheme as an `IProofVerifier`. Co-author contributions include technical corrections to `inputHash` derivation (not keccak of the two hashes), `ATTESTATION_TYPEHASH` field names (`manifestHash→modelHash`, `agentId uint256→bytes32`, `timestamp uint64→uint256`), and `block.chainid` dynamic requirement.
+- **Jimmy Shi** — first external implementation of WYRIWE: WyriweVerifier for ERC-8274, wrapping the triple-hash scheme as an `IProofVerifier`. Co-author contributions include technical corrections to `inputHash` derivation (not keccak of the two hashes), `ATTESTATION_TYPEHASH` field names (`manifestHash→modelHash`, `agentId uint256→bytes32`, `timestamp uint64→uint256`), `block.chainid` dynamic requirement, and ERC-8274 `proofSystem = "attestation/wyriwe"` taxonomy placement.
+
+- **babyblueviper1** — production judgment validator operator. Contributions: `claimType` field concept (signed artifact must carry type tag independent of contract context); `codeMeasurement` MUST be absent for `claimType = Judgment` (attests assessment, not execution environment); `recordPointer` field structure (validator public key + pre-outcome signed timestamps + externally verifiable outcome evidence + `schemaVersion`); `verify()` semantic clarification (authenticates verdict, does not endorse soundness); Nostr relay anchoring as timestamp commitment primitive (aligns with OCP/ERC-8281 model).
 
 ---
 
