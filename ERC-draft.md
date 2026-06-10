@@ -314,18 +314,21 @@ struct JudgmentExecutionAttestation {
     bytes32 executedActionHash;  // keccak256(canonical executed-action record), revealed at settlement
     uint256 verdictTimestamp;    // verdict issuance — the commit, strictly pre-execution
     uint256 executedTimestamp;   // execution — the reveal
+    string  recordPointer;       // URI to the ledger entry; target MUST expose commitment and outcome
+                                 // evidence at separately addressable paths (pre-settlement: commitment
+                                 // only; post-settlement: both). Empty string if not yet anchored.
 }
 ```
 
 **Type string:**
 
 ```
-JudgmentExecutionAttestation(bytes32 agentId,address registry,bytes32 validatorId,bytes32 rawProposalHash,bytes32 verdictHash,bytes32 executedActionHash,uint256 verdictTimestamp,uint256 executedTimestamp)
+JudgmentExecutionAttestation(bytes32 agentId,address registry,bytes32 validatorId,bytes32 rawProposalHash,bytes32 verdictHash,bytes32 executedActionHash,uint256 verdictTimestamp,uint256 executedTimestamp,string recordPointer)
 ```
 
 Domain separator: `ERC8004AttestationGateway` / version `"1"` / `block.chainid` — same as `WyriweAttestation` by design. Struct typehash prevents cross-type confusion; attestor address serves as deployment-level identity. A dedicated judgment gateway SHOULD use the same domain name — splitting it would fork verifier code paths without adding security.
 
-`proofSystem() = "attestation/judgment"`, `claimType = Judgment`.
+`proofSystem() = "attestation/judgment"` — returned by the `IProofVerifier` implementation; lives in the verifier path (contract context). `claimType = Judgment` — carried inside the signed artifact for off-chain consumers (indexers, dispute interfaces) that read the struct without calling the verifier contract. The two fields serve distinct routing purposes and MUST NOT be conflated.
 
 **Design notes:**
 
@@ -334,6 +337,8 @@ Domain separator: `ERC8004AttestationGateway` / version `"1"` / `block.chainid` 
 2. **Commit-reveal invariant.** `verdictTimestamp < executedTimestamp` MUST hold. `executedActionHash` SHOULD be committed at verdict time — when the post-verdict intent hash is knowable — not post-execution. `submitReveal` is then called post-execution with settlement evidence linked separately rather than hashed into the record. The verdict artifact is published at commit time (relay-anchored in the reference implementation). The reviewed→executed gap closes by the same argument as WYRIWE's reviewed→input gap: the executor can only reveal an action whose hash matches what was committed and judged. This two-step pattern maps directly to `CommitRevealSettler.submitCommit` / `submitReveal`.
 
 3. **Canonicalization as verification step 3.** The executed action record never byte-equals the proposal (a fill has a price; a proposal has an intent), so the verdict artifact doubles as the conformance spec the verifier applies — exactly the role the sanitization spec CID plays in WYRIWE verification step 3. The unconditional-approve case degenerates to canonical field equality, which is the sentinel.
+
+4. **`recordPointer` and evidence separability.** The `recordPointer` target MUST keep commitment evidence and outcome evidence separately addressable. A verifier MUST be able to check commitment without outcome (pre-settlement: `verdictHash` + relay anchor) and outcome without re-deriving commitment (post-settlement: `executedActionHash` + on-chain settlement ref). Collapsing both into a single field would require re-deriving one to check the other, breaking the pre/post-settlement inspection boundary. `verify()` on the `IProofVerifier` attests to the *authenticity of the verdict* — that the EIP-712 signature binding is valid — not to the *soundness of the judgment*. Soundness is a property of the verdict artifact resolved through `verdictHash`, not of the attestation struct itself.
 
 **Honesty conventions from the reference implementation** (generalise to any producer):
 - Entries predating the wiring carry a partial block with `executed_action_hash: null` and an explicit `"not backfilled by design"` status. A commitment you did not make at the time is not one you get to manufacture later.
