@@ -306,7 +306,9 @@ executedActionHash = keccak256(canonical_executed_action_record)
 struct JudgmentExecutionAttestation {
     bytes32 agentId;             // ERC-8004 identity of the EXECUTING agent
     address registry;            // ERC-8004 registry address
-    bytes32 validatorId;         // ERC-8004 identity of the judgment validator (zero-valued if off-registry, MUST NOT be omitted)
+    bytes32 validatorId;         // ERC-8004 identity of the judgment validator. MUST NOT be omitted.
+                                 // Zero value signals an off-registry validator whose identity
+                                 // MUST be resolvable from the verdict artifact (e.g. schnorr pubkey in a signed Nostr event).
     bytes32 rawProposalHash;     // keccak256(canonical proposed-action artifact, pre-review)
     bytes32 verdictHash;         // keccak256(verdict_artifact_cid || rawProposalHash)
     bytes32 executedActionHash;  // keccak256(canonical executed-action record), revealed at settlement
@@ -321,7 +323,7 @@ struct JudgmentExecutionAttestation {
 JudgmentExecutionAttestation(bytes32 agentId,address registry,bytes32 validatorId,bytes32 rawProposalHash,bytes32 verdictHash,bytes32 executedActionHash,uint256 verdictTimestamp,uint256 executedTimestamp)
 ```
 
-Domain separator: `ERC8004AttestationGateway` / version `"1"` / `block.chainid` — same convention as `WyriweAttestation`, composing in the same gateway without splitting verifier code paths.
+Domain separator: `ERC8004AttestationGateway` / version `"1"` / `block.chainid` — same as `WyriweAttestation` by design. Struct typehash prevents cross-type confusion; attestor address serves as deployment-level identity. A dedicated judgment gateway SHOULD use the same domain name — splitting it would fork verifier code paths without adding security.
 
 `proofSystem() = "attestation/judgment"`, `claimType = Judgment`.
 
@@ -329,7 +331,7 @@ Domain separator: `ERC8004AttestationGateway` / version `"1"` / `block.chainid` 
 
 1. **Signature roles.** Only one signature is required — the executing agent's attestor signs the EIP-712 digest at reveal time. The validator's own signature lives inside the verdict artifact that `verdictHash` pins, so validator authenticity is carried without a second signature field. This keeps the ERC-8274 layering clean: `IProofVerifier` authenticates the attestation; the verdict artifact authenticates the judgment.
 
-2. **Commit-reveal invariant.** `verdictTimestamp < executedTimestamp` MUST hold. The verdict artifact is published at commit time (relay-anchored in the reference implementation). The reviewed→executed gap closes by the same argument as WYRIWE's reviewed→input gap: the executor can only reveal an action whose hash matches what was committed and judged.
+2. **Commit-reveal invariant.** `verdictTimestamp < executedTimestamp` MUST hold. `executedActionHash` SHOULD be committed at verdict time — when the post-verdict intent hash is knowable — not post-execution. `submitReveal` is then called post-execution with settlement evidence linked separately rather than hashed into the record. The verdict artifact is published at commit time (relay-anchored in the reference implementation). The reviewed→executed gap closes by the same argument as WYRIWE's reviewed→input gap: the executor can only reveal an action whose hash matches what was committed and judged. This two-step pattern maps directly to `CommitRevealSettler.submitCommit` / `submitReveal`.
 
 3. **Canonicalization as verification step 3.** The executed action record never byte-equals the proposal (a fill has a price; a proposal has an intent), so the verdict artifact doubles as the conformance spec the verifier applies — exactly the role the sanitization spec CID plays in WYRIWE verification step 3. The unconditional-approve case degenerates to canonical field equality, which is the sentinel.
 
