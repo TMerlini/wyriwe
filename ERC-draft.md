@@ -256,6 +256,10 @@ https://gateway.ensub.org/agent/verify/758d61f26a44448384e5c4468a0dcb7a2abe45606
 
 Source code: https://github.com/Echo-Merlini/ccip-router
 
+**L2 settlement reference node:** `https://gateway.gen-plasma.com` — live ccip-router node tracking spec revisions. Runs `CommitRevealSettlerV2` (bond/slash, Router+Hybrid gate) and `GenericCommitRevealSettler` (bytes-generic, Appendix A) against Sepolia. Each spec revision is reviewed against the deployed node before commit; drift found in review is fixed before the revision is pushed. Conformance is tracked at the npm package version — `ccip-router` on npmjs.com mirrors the deployed spec layer.
+
+**L4 judgment reference implementation:** `https://api.babyblueviper.com/ledger` — live production judgment validator tracking spec revisions. Each revision reviewed against deployed endpoints; `/commitment` and `/outcome` sub-paths conform to Appendix A. See Acknowledgements.
+
 **External implementations:**
 - WyriweVerifier (Jimmy Shi) — `IProofVerifier` wrapper for ERC-8274: https://ethereum-magicians.org/t/erc-8274-ai-inference-proof-verification/28083
 - WyriweProofVerifier (mainnet): `0xd8a09d830b27697e1b24e8c9800e562d20318a09`
