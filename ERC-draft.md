@@ -328,9 +328,11 @@ The same chain-of-custody question exists one layer up for judgment validators: 
 
 ```
 rawProposalHash    = keccak256(canonical_proposed_action)
-verdictHash        = keccak256(verdict_artifact_cid || rawProposalHash)
+verdictHash        = keccak256(verdict_artifact_ref || rawProposalHash)
 executedActionHash = keccak256(canonical_executed_action_record)
 ```
+
+`verdict_artifact_ref` is the canonical identifier of the specific signed verdict artifact. The format is storage-backend dependent: an IPFS CID for content-addressed storage, a Nostr event ID for relay-anchored verdicts (`keccak256(verdict_event_id || rawProposalHash)` in the reference implementation). The anti-equivocation property is identical across formats: a validator cannot swap between multiple signed verdicts post-reveal because the specific artifact identifier is bound in the commitment.
 
 `verdictHash` binds to `rawProposalHash` — mirroring the sanitization-pipeline-hash construction — making verdict-shopping impossible: a verdict cannot be replayed against a different proposal than the one it judged.
 
@@ -344,7 +346,8 @@ struct JudgmentExecutionAttestation {
                                  // Zero value signals an off-registry validator whose identity
                                  // MUST be resolvable from the verdict artifact (e.g. schnorr pubkey in a signed Nostr event).
     bytes32 rawProposalHash;     // keccak256(canonical proposed-action artifact, pre-review)
-    bytes32 verdictHash;         // keccak256(verdict_artifact_cid || rawProposalHash)
+    bytes32 verdictHash;         // keccak256(verdict_artifact_ref || rawProposalHash)
+                                 // verdict_artifact_ref: IPFS CID or Nostr event ID of the signed verdict
     bytes32 executedActionHash;  // keccak256(canonical executed-action record), revealed at settlement
     uint256 verdictTimestamp;    // verdict issuance — the commit, strictly pre-execution
     uint256 executedTimestamp;   // execution — the reveal
@@ -409,6 +412,8 @@ Domain separator: `ERC8004AttestationGateway` / version `"1"` / `block.chainid` 
 - Where a production system records a single timestamp per governance cycle, `executedTimestamp` is `null` with an ordering note rather than a fabricated reveal time. The strict `verdictTimestamp < executedTimestamp` invariant belongs to the on-chain attestation; an off-chain production mapping should record what it actually measured.
 
 Reference implementation: [api.babyblueviper.com/ledger](https://api.babyblueviper.com/ledger) — live production ledger. Entry `/ledger/3` shows a pre-wiring partial block; new entries carry the full `judgment_execution` block. Running against real capital.
+
+5. **`string recordPointer` is the correct type for EIP-712.** The `RecordPointer` struct (Appendix B) is the resolved payload schema — it is NOT inlined into the signed type. The attestation is signed once and frozen at verdict time; the record it points to is alive and grows over time (`outcomeEvidence` does not exist when the verdict attestation is signed). Inlining `RecordPointer` into the EIP-712 struct would require signing a permanently incomplete field. The on-chain anchoring of the verdict artifact (Nostr event ID or IPFS CID in `verdictHash`) already secures commitment integrity independently of the pointer. The 9-field type string is therefore stable and MUST NOT be changed pre-review.
 
 ---
 
