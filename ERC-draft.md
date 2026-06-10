@@ -549,11 +549,11 @@ The `replaced_by_newer_same_artifact` state distinguishes a recoverable NIP-33 o
 
 1. **Original relay copy available** — use the original relay-attested timestamp. Strongest proof; no gap.
 2. **On-chain `committedAt` (settled entry)** — use the `committedAt` block timestamp from the settlement contract. Decay-resistant; independent of relay state. Valid even when relay copy is unavailable.
-3. **Survivor timestamp (`replaced_by_newer_same_artifact`)** — fallback only. The survivor's timestamp is strictly later than the original publication time. Production-observed gap: 27–50 minutes. Consumers MUST NOT treat survivor timestamp as equivalent to original relay-attested timestamp.
+3. **Survivor timestamp (`replaced_by_newer_same_artifact`)** — fallback only. The survivor's timestamp is strictly later than the original publication time. Production-observed gap: 15–45 minutes (illustrative; normative content is the hierarchy, not the specific numbers). Consumers MUST NOT treat survivor timestamp as equivalent to original relay-attested timestamp.
 
 Claiming tier-1 timing strength from a tier-3 source is incorrect. For settled entries, tier 2 is always available and SHOULD be preferred over the survivor timestamp regardless of relay state.
 
-Production finding: in the reference implementation, 9 of 18 relay copies were silently replaced via NIP-33 overwrites before the `relay_anchor` status field was introduced. The commitment bindings survived; naive fetching would have failed. Observed gap between original publication and NIP-33 replacement: 27–50 minutes.
+Production finding: in the reference implementation, 9 of 18 relay copies were silently replaced via NIP-33 overwrites before the `relay_anchor` status field was introduced. The commitment bindings survived; naive fetching would have failed. Observed gap between original publication and NIP-33 replacement: 15–45 minutes.
 
 ### Production mapping — reference implementation
 
