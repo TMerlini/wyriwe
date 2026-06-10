@@ -364,30 +364,7 @@ struct JudgmentExecutionAttestation {
 }
 ```
 
-The `recordPointer` URI resolves to a record conforming to the following schema:
-
-```solidity
-struct RecordPointer {
-    bytes32 validatorId;      // ERC-8004 identity of the judgment validator.
-                              // Zero value: off-registry validator — identity MUST resolve from the
-                              // verdict artifact itself (e.g. schnorr pubkey of a signed Nostr event).
-                              // Consumers MUST reject if resolution fails.
-    bytes32 registryType;     // keccak256 of type string: "evm/registry", "nostr/profile", "offchain/ledger"
-    bytes   registryRef;      // registry-specific locator (contract address, Nostr pubkey, URL, etc.)
-    bytes   commitmentProof;  // pre-settlement evidence — signed verdict, relay anchor, commit hash.
-                              // SHOULD open with a self-describing mechanism identifier
-                              // (e.g. "nostr-relay-publication", "onchain-commitment") so consumers
-                              // can select the correct trust model without external context.
-    bytes   outcomeEvidence;  // post-settlement evidence — settlement account, outcome digests.
-                              // MAY be empty before settlement.
-                              // SHOULD open with a self-describing mechanism identifier
-                              // (e.g. "onchain-settlement+digests").
-}
-```
-
-`commitmentProof` and `outcomeEvidence` MUST remain separately resolvable (see design note 4). Collapsing them into a single field removes the ability to verify commitment integrity while the outcome is still open.
-
-**Relay retention.** For Nostr-anchored verdicts, relay copies are not guaranteed to persist. NIP-33 parameterized-replaceable events can silently overwrite relay copies — naive event-fetching by ID may fail even when the commitment binding survives. Producers SHOULD surface a `relay_anchor` retention status alongside `commitmentProof` that declares actual relay availability rather than assuming it. Consumers MUST treat an unavailable relay copy as a retrieval failure, not as evidence of non-commitment.
+The `recordPointer` URI resolves to a record conforming to the `RecordPointer` schema defined in Appendix B. `commitmentProof` and `outcomeEvidence` MUST remain separately resolvable (see design note 4 and Appendix B).
 
 **Type string:**
 
@@ -503,6 +480,74 @@ The `Revealed` event emits the full `bytes record` — any observer can verify t
 ### recordPointer sub-paths
 
 `{recordPointer}/commitment` MUST return pre-settlement evidence: signed verdict, relay anchor, `commitmentHash`, block number of `submitCommit`. `{recordPointer}/outcome` MUST return post-settlement evidence: `recordHash` from `getCommit`, reveal transaction hash, settlement account. These are separately resolvable — a dispute verifier MUST be able to confirm commitment integrity without accessing outcome evidence.
+
+---
+
+## Appendix B — RecordPointer Schema
+
+The `RecordPointer` struct is the resolved payload schema for the `string recordPointer` field in `JudgmentExecutionAttestation`. It is NOT part of the EIP-712 signed type — the attestation is signed once and frozen at verdict time; the record it points to grows over time as `outcomeEvidence` accumulates. See design note 5.
+
+### Struct definition
+
+```solidity
+struct RecordPointer {
+    bytes32 validatorId;      // ERC-8004 identity of the judgment validator.
+                              // Zero value: off-registry validator — identity MUST resolve from the
+                              // verdict artifact itself (e.g. schnorr pubkey of a signed Nostr event).
+                              // Consumers MUST reject if resolution fails.
+    bytes32 registryType;     // keccak256 of registry type string — see table below.
+    bytes   registryRef;      // registry-specific locator (contract address, Nostr pubkey, URL, etc.)
+    bytes   commitmentProof;  // pre-settlement evidence: signed verdict, relay anchor, commit hash.
+                              // SHOULD open with a self-describing mechanism identifier byte prefix
+                              // so consumers can select the correct trust model without external context.
+    bytes   outcomeEvidence;  // post-settlement evidence: settlement account, outcome digests.
+                              // MAY be empty before settlement closes.
+                              // SHOULD open with a self-describing mechanism identifier byte prefix.
+}
+```
+
+### registryType values
+
+| Identifier string | keccak256 | Description |
+|---|---|---|
+| `"evm/registry"` | — | On-chain ERC-8004 registry. `registryRef` = ABI-encoded `(address registry, bytes32 agentId)`. |
+| `"nostr/profile"` | — | Nostr relay profile. `registryRef` = UTF-8 encoded npub or hex pubkey. |
+| `"offchain/ledger"` | — | Off-chain ledger URL. `registryRef` = UTF-8 encoded base URL. |
+
+Producers SHOULD use one of the above identifiers. Custom types are permitted; consumers encountering an unknown `registryType` SHOULD surface it as unrecognised rather than failing silently.
+
+### Mechanism identifier convention
+
+`commitmentProof` and `outcomeEvidence` are opaque `bytes`. Each SHOULD open with a UTF-8 encoded self-describing mechanism identifier followed by a null byte (`0x00`) separator, so consumers can select the correct trust model without external context:
+
+| Identifier | Meaning |
+|---|---|
+| `"nostr-relay-publication"` | Nostr event anchor — Nostr event ID, relay set, `relay_anchor` retention status |
+| `"onchain-commitment"` | On-chain commit tx hash and block number (e.g. `GenericCommitRevealSettler`) |
+| `"onchain-settlement+digests"` | On-chain reveal tx hash + signed outcome digests |
+| `"offchain-ledger+digests"` | Off-chain settlement account URL + signed outcome digests |
+
+### validatorId = 0x0 — off-registry validators
+
+When `validatorId` is zero, the validator is not registered in an ERC-8004 registry. The validator identity MUST resolve from the verdict artifact itself — for example, the schnorr pubkey embedded in a signed Nostr event pinned by `verdictHash`. Consumers MUST reject the record if resolution fails. Zero `validatorId` is a valid state, not an error; it describes validators whose identity is carried in the artifact rather than an on-chain registry.
+
+### Relay retention
+
+For Nostr-anchored verdicts, relay copies are not guaranteed to persist. NIP-33 parameterized-replaceable events can silently overwrite relay copies — naive event-fetching by event ID may fail even when the commitment binding survives intact. Producers SHOULD surface a `relay_anchor` retention status field within `commitmentProof` that declares actual relay availability rather than assuming it. Consumers MUST treat an unavailable relay copy as a retrieval failure, not as evidence of non-commitment.
+
+Production finding: in the reference implementation, 9 of 18 relay copies were silently replaced via NIP-33 overwrites before the `relay_anchor` status field was introduced. The commitment bindings survived; naive fetching would have failed.
+
+### Production mapping — reference implementation
+
+Ledger entry at `https://api.babyblueviper.com/ledger/19`:
+
+| `RecordPointer` field | Value |
+|---|---|
+| `validatorId` | `0x0` (off-registry — schnorr pubkey resolves from the signed Nostr event) |
+| `registryType` | `keccak256("offchain/ledger")` |
+| `registryRef` | `https://api.babyblueviper.com/ledger/19` |
+| `commitmentProof` | resolves at `/ledger/19/commitment` — Nostr event ID, relay set, `relay_anchor` retention status |
+| `outcomeEvidence` | resolves at `/ledger/19/outcome` — settlement account, signed outcome digests (pending until settlement) |
 
 ---
 
