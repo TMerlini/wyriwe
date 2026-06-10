@@ -253,6 +253,46 @@ WYRIWE commits to the *hash* of the input, not the input itself. The raw input a
 
 ---
 
+## Composition
+
+This section documents known application patterns that reuse WYRIWE's triple-hash shape at adjacent stack layers. The shape — `commitment = keccak256(abi.encode(inputCommitment, scopeBinding, attestingParty))` — is layer-agnostic; only the semantic content of each slot changes.
+
+### L2 Snapshot commitment (ERC-8275 / ccip-router)
+
+The ccip-router's contribution settlement layer reuses the triple-hash directly:
+
+```
+snapshotRoot    = keccak256(abi.encode(rows))
+commitmentHash  = keccak256(abi.encode(snapshotRoot, periodId, nodeAddress))
+```
+
+Slot mapping against WYRIWE's L3 scheme:
+
+| WYRIWE (L3 input provenance) | ERC-8275 L2 snapshot settlement |
+|---|---|
+| `rawInputHash` | `snapshotRoot` — commitment to contribution rows |
+| `sanitizationPipelineHash` | `periodId` — temporal scope of the settlement window |
+| `inputHash` (submitted on-chain) | `commitmentHash` (submitted to `CommitRevealSettler`) |
+| `agentId` | `nodeAddress` — the attesting node |
+
+The `snapshotRoot` is derived from rows of `(address contributor, uint256 score, uint256 timestamp)` sorted by contributor address ascending, ABI-encoded. The `commitmentHash` is what a node submits during the commit phase; the full snapshot rows are revealed and verified against it during the reveal phase. The commit-reveal scheme closes the "committed → executed" gap by construction: a node can only reveal data whose hash matches its commit.
+
+Reference implementation: `POST /contributions/snapshot/freeze` in [ccip-router v0.6.0](https://github.com/Echo-Merlini/ccip-router).
+
+### L4 Judgment validator binding (pending — joint with @babyblueviper1)
+
+The same chain-of-custody question exists one layer up for judgment validators: `inputHash` commits to the exact proposed action reviewed, but nothing yet binds "action reviewed" to "action executed after verdict." The triple-hash shape is reusable:
+
+```
+proposedActionHash  = keccak256(proposed action payload)
+verdictHash         = keccak256(signed verdict struct)
+executedActionHash  = keccak256(abi.encode(proposedActionHash, verdictHash, validatorAddress))
+```
+
+This section will be completed jointly with @babyblueviper1 once the judgment-validator type string and `IProofVerifier` integration are confirmed. The EIP-712 type definition, `claimType` tag, and OCP `commitment_proof` anchor will be added here.
+
+---
+
 ## References
 
 - [ERC-8004](https://ethereum-magicians.org/t/erc-8004-trustless-agents/25098) — Verified Node Identity (agent identity layer)
