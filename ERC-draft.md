@@ -364,16 +364,26 @@ The `recordPointer` URI resolves to a record conforming to the following schema:
 
 ```solidity
 struct RecordPointer {
-    bytes32 validatorId;      // ERC-8004 identity of the judgment validator
+    bytes32 validatorId;      // ERC-8004 identity of the judgment validator.
+                              // Zero value: off-registry validator — identity MUST resolve from the
+                              // verdict artifact itself (e.g. schnorr pubkey of a signed Nostr event).
+                              // Consumers MUST reject if resolution fails.
     bytes32 registryType;     // keccak256 of type string: "evm/registry", "nostr/profile", "offchain/ledger"
     bytes   registryRef;      // registry-specific locator (contract address, Nostr pubkey, URL, etc.)
-    bytes   commitmentProof;  // pre-settlement evidence — signed verdict, relay anchor, commit hash
-    bytes   outcomeEvidence;  // post-settlement evidence — settlement account, outcome digests
-                              // MAY be empty before settlement. Corresponds to {recordPointer}/outcome sub-path.
+    bytes   commitmentProof;  // pre-settlement evidence — signed verdict, relay anchor, commit hash.
+                              // SHOULD open with a self-describing mechanism identifier
+                              // (e.g. "nostr-relay-publication", "onchain-commitment") so consumers
+                              // can select the correct trust model without external context.
+    bytes   outcomeEvidence;  // post-settlement evidence — settlement account, outcome digests.
+                              // MAY be empty before settlement.
+                              // SHOULD open with a self-describing mechanism identifier
+                              // (e.g. "onchain-settlement+digests").
 }
 ```
 
 `commitmentProof` and `outcomeEvidence` MUST remain separately resolvable (see design note 4). Collapsing them into a single field removes the ability to verify commitment integrity while the outcome is still open.
+
+**Relay retention.** For Nostr-anchored verdicts, relay copies are not guaranteed to persist. NIP-33 parameterized-replaceable events can silently overwrite relay copies — naive event-fetching by ID may fail even when the commitment binding survives. Producers SHOULD surface a `relay_anchor` retention status alongside `commitmentProof` that declares actual relay availability rather than assuming it. Consumers MUST treat an unavailable relay copy as a retrieval failure, not as evidence of non-commitment.
 
 **Type string:**
 
