@@ -412,6 +412,81 @@ Reference implementation: [api.babyblueviper.com/ledger](https://api.babybluevip
 
 ---
 
+## Appendix A — Cross-system settlement: GenericCommitRevealSettler integration
+
+This appendix documents the integration pattern for judgment attestations with `GenericCommitRevealSettler` as a reference for any L4 producer. First demonstrated in the cross-system settlement of ledger entry 19 at [api.babyblueviper.com/ledger/19](https://api.babyblueviper.com/ledger/19) — commit block 11030402, reveal block 11030403.
+
+**Contract:** `GenericCommitRevealSettler` on Sepolia: `0xFe7Ab6d95f7567a311B98D029373d0fc1511aCCe`
+
+Bytes-opaque commit/reveal primitive. No bond, no NodeType gate. Verifies preimage binding only — usable for contribution snapshots (ERC-8275), judgment attestations (WYRIWE L4), OCP observations, or any future schema.
+
+### Hash construction
+
+```solidity
+commitmentHash = keccak256(abi.encode(record, periodId, committer))
+```
+
+Binding to `periodId + committer` prevents cross-period and cross-sender replay without the contract knowing the record schema.
+
+### Encoding convention for judgment attestations
+
+```solidity
+bytes memory record = abi.encode(
+    rawProposalHash,     // bytes32 — what was proposed
+    verdictHash,         // bytes32 — the judgment, binding to rawProposalHash
+    executedActionHash,  // bytes32 — what was actually executed
+    verdictTimestamp     // uint256 — verdict issuance, strictly pre-execution
+);
+```
+
+Minimal set that closes the reviewed→executed gap. Attestation metadata (`agentId`, `registry`, `validatorId`, `recordPointer`) is carried in the full struct at settlement time and does not need to be committed.
+
+### Recommended preflight
+
+Before calling `submitCommit`, verify the hash binding off-chain at zero gas cost:
+
+```solidity
+// eth_call — no gas spent
+bytes32 expected = computeCommitmentHash(record, periodId, committerAddress);
+// verify expected == locally computed hash before submitting
+```
+
+Treat this as a required preflight, not an optional check. If the hashes do not match byte-exact, there is an encoding error — fix it before spending gas.
+
+### periodId convention
+
+Use the ledger entry number as `periodId`. Creates a 1:1 binding between ledger entries and settlement periods; makes `getCommit(periodId, committer)` directly queryable from the entry index.
+
+### Workflow
+
+```
+1. record           = abi.encode(rawProposalHash, verdictHash, executedActionHash, verdictTimestamp)
+2. commitmentHash   = keccak256(abi.encode(record, periodId, committerAddress))
+3. Preflight        : eth_call computeCommitmentHash(record, periodId, committerAddress) → verify match
+4. submitCommit(periodId, commitmentHash)
+5. Execute the governed action
+6. submitReveal(periodId, record)
+```
+
+`submitReveal` reverts on mismatch. Reveal window: 48 hours from commit. Challenge period: 7 days from reveal.
+
+### Invariant check
+
+```solidity
+CommitRecord memory c = getCommit(periodId, committer);
+// c.committedAt > 0                          committed
+// c.revealedAt  > c.committedAt              temporal ordering holds
+// c.recordHash  == keccak256(record)         preimage binding holds
+```
+
+The `Revealed` event emits the full `bytes record` — any observer can verify the preimage independently from the event log.
+
+### recordPointer sub-paths
+
+`{recordPointer}/commitment` MUST return pre-settlement evidence: signed verdict, relay anchor, `commitmentHash`, block number of `submitCommit`. `{recordPointer}/outcome` MUST return post-settlement evidence: `recordHash` from `getCommit`, reveal transaction hash, settlement account. These are separately resolvable — a dispute verifier MUST be able to confirm commitment integrity without accessing outcome evidence.
+
+---
+
 ## References
 
 - [ERC-8004](https://ethereum-magicians.org/t/erc-8004-trustless-agents/25098) — Verified Node Identity (agent identity layer)
