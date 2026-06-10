@@ -535,6 +535,16 @@ When `validatorId` is zero, the validator is not registered in an ERC-8004 regis
 
 For Nostr-anchored verdicts, relay copies are not guaranteed to persist. NIP-33 parameterized-replaceable events can silently overwrite relay copies — naive event-fetching by event ID may fail even when the commitment binding survives intact. Producers SHOULD surface a `relay_anchor` retention status field within `commitmentProof` that declares actual relay availability rather than assuming it. Consumers MUST treat an unavailable relay copy as a retrieval failure, not as evidence of non-commitment.
 
+The `relay_anchor` status SHOULD use one of the following values:
+
+| Status | Meaning |
+|---|---|
+| `"anchored"` | Original event live on all declared relays. |
+| `"replaced_by_newer_same_artifact"` | Original event overwritten by NIP-33 replacement; surviving event commits to identical artifact hash. Recovery path: consumer verifies the surviving event satisfies the same commitment check. |
+| `"unverified"` | Relay availability could not be confirmed at record publication time. |
+
+The `replaced_by_newer_same_artifact` state distinguishes a recoverable NIP-33 overwrite (same content, different event ID) from an unrecoverable loss. When a producer identifies a surviving equivalent event, consumers can verify commitment integrity from the survivor without access to the original event ID. This recovery path is anchor-type-specific — the mechanism identifier tag (`"nostr-relay-publication"`) scopes what "event id" means within that trust model; other anchor types require their own recovery semantics.
+
 Production finding: in the reference implementation, 9 of 18 relay copies were silently replaced via NIP-33 overwrites before the `relay_anchor` status field was introduced. The commitment bindings survived; naive fetching would have failed.
 
 ### Production mapping — reference implementation
