@@ -2,18 +2,18 @@
 eip: XXXX
 title: WYRIWE — What You Read Is What You Execute
 description: An input-provenance commitment scheme and attestation profile for verifiable AI agent inference
-author: Tiago Merlini (@TMerlini), Vincent Wu (@vincent-wu-eth), Damon Zwicker (@damonzwicker), Jimmy Shi (@JimmyShi22), babyblueviper1 (@babyblueviper1)
+author: Tiago Merlini (@TMerlini), Vincent Wu (@TruthAnchor-AI), Damon Zwicker (@damonzwicker), Jimmy Shi (@JimmyShi22), babyblueviper1 (@babyblueviper1)
 discussions-to: https://ethereum-magicians.org/t/wyriwe-what-you-read-is-what-you-execute-input-provenance-for-verifiable-ai-inference/28655
 status: Draft
 type: Standards Track
 category: ERC
 created: 2026-05-28
-requires: 712, 8004
+requires: 712, 8004, 8263
 ---
 
 ## Abstract
 
-This ERC defines a triple-hash commitment scheme and EIP-712 attestation profile for proving that the input a model received is the input the user intended. It introduces three linked fields — `raw_input_hash`, `sanitization_pipeline_hash`, and `input_hash` — that together form a verifiable chain of custody for AI inference inputs. A verifier can confirm input integrity using only the committed hashes and the public sanitization specification, without trusting the agent, gateway, or execution environment. This standard occupies the input-provenance layer of the AI inference trust stack, complementing ERC-8004 (agent identity), ERC-8126 (agent verification), and ERC-8263 / OCP (execution attestation).
+This ERC defines a triple-hash commitment scheme and EIP-712 attestation profile for proving that the input a model received is the input the user intended. It introduces three linked fields — `raw_input_hash`, `sanitization_pipeline_hash`, and `input_hash` — that together form a verifiable chain of custody for AI inference inputs. A verifier can confirm input integrity using only the committed hashes and the public sanitization specification, without trusting the agent, gateway, or execution environment. This standard occupies the input-provenance layer of the AI inference trust stack, complementing ERC-8004 (agent identity), ERC-8126 (agent verification), ERC-8263 (on-chain proof commitment and anchor layer), and OCP / ERC-8281 (observation commitment protocol).
 
 ---
 
@@ -573,7 +573,7 @@ Ledger entry at `https://api.babyblueviper.com/ledger/19`:
 
 - [ERC-8004](https://ethereum-magicians.org/t/erc-8004-trustless-agents/25098) — Verified Node Identity (agent identity layer)
 - [ERC-8126](https://eips.ethereum.org/EIPS/eip-8126) — AI Agent Verification (Final)
-- [ERC-8263](https://ethereum-magicians.org/t/erc-8263) — Onchain Proof Layer for AI Agents (Vincent Wu)
+- [ERC-8263](https://ethereum-magicians.org/t/erc-8263) — Onchain Proof Layer for AI Agent Actions (Vincent Wu / @TruthAnchor-AI)
 - [ERC-8274](https://ethereum-magicians.org/t/erc-8274-ai-inference-proof-verification/28083) — AI Inference Proof Verification (Jimmy Shi)
 - [ERC-8275](https://ethereum-magicians.org/t/erc-8275-agent-service-discovery-and-escrow-payments/28622) — Mesh Node Compensation (Panini)
 - [ERC-8281 / OCP](https://github.com/damonzwicker/observation-commitment-protocol) — Observation Commitment Protocol (Damon Zwicker)
@@ -583,6 +583,8 @@ Ledger entry at `https://api.babyblueviper.com/ledger/19`:
 ---
 
 ## Acknowledgements
+
+- **Vincent Wu** (@TruthAnchor-AI) — co-author. Contributions: ERC-8263 layer-boundary definition establishing the proof-commitment / anchor surface as a distinct primitive from OCP / ERC-8281 (observation commitment); TruthAnchorV1 / AnchorProof canonical event as the ERC-8263 anchor layer; separation of AttestationIndex (commitment store) from TruthAnchorV1 (event layer) as composable without either absorbing the other; interoperability path from gateway-produced signed attestation through to IProofVerifier-style settlement consumption.
 
 - **Jimmy Shi** — first external implementation of WYRIWE: WyriweVerifier for ERC-8274, wrapping the triple-hash scheme as an `IProofVerifier`. Co-author contributions include technical corrections to `inputHash` derivation (not keccak of the two hashes), `ATTESTATION_TYPEHASH` field names (`manifestHash→modelHash`, `agentId uint256→bytes32`, `timestamp uint64→uint256`), `block.chainid` dynamic requirement, and ERC-8274 `proofSystem = "attestation/wyriwe"` taxonomy placement.
 
