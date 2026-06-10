@@ -2,7 +2,7 @@
 eip: XXXX
 title: WYRIWE — What You Read Is What You Execute
 description: An input-provenance commitment scheme and attestation profile for verifiable AI agent inference
-author: Tiago Merlini (@TMerlini), Vincent Wu (@vincent-wu-eth), Damon Zwicker (@damonzwicker), Jimmy Shi (@JimmyShi22)
+author: Tiago Merlini (@TMerlini), Vincent Wu (@vincent-wu-eth), Damon Zwicker (@damonzwicker), Jimmy Shi (@JimmyShi22), babyblueviper1 (@babyblueviper1)
 discussions-to: https://ethereum-magicians.org/t/wyriwe-what-you-read-is-what-you-execute-input-provenance-for-verifiable-ai-inference/28655
 status: Draft
 type: Standards Track
@@ -511,7 +511,7 @@ The `Revealed` event emits the full `bytes record` — any observer can verify t
 
 - **Damon Zwicker** (@damonzwicker) — co-author. Contributions: `ClaimType` enum definition and proofSystem / claimType separation rationale (Section 7); `RecordPointer` typed schema formalizing the `commitmentProof` / `outcomeEvidence` distinction; `JudgmentVerificationCompleted` event definition; `verify()` three-layer accountability boundary for `ClaimType.Judgment`; OCP / ERC-8281 commitment discipline integration; ERC-8274 worked example gist.
 
-- **babyblueviper1** — production judgment validator operator. Contributions: `claimType` field concept (signed artifact must carry type tag independent of contract context); `codeMeasurement` MUST be absent for `claimType = Judgment` (attests assessment, not execution environment); `recordPointer` field structure; `verify()` semantic clarification (authenticates verdict, does not endorse soundness); Nostr relay anchoring as timestamp commitment primitive; complete `JudgmentExecutionAttestation` EIP-712 struct, triple-hash construction, and slot-for-slot WYRIWE mapping (L4 Composition section); production reference implementation at [api.babyblueviper.com/ledger](https://api.babyblueviper.com/ledger).
+- **babyblueviper1** (@babyblueviper1) — co-author. Production judgment validator operator. Primary author of the L4 Composition section: `JudgmentExecutionAttestation` EIP-712 struct and triple-hash construction; slot-for-slot WYRIWE mapping; `claimType` field concept; `verify()` semantic clarification (authenticates verdict, does not endorse soundness); `recordPointer` field and commitment/outcome separability invariant; Nostr relay anchoring as timestamp commitment primitive; `codeMeasurement` MUST be absent for `claimType = Judgment`; `verdictHash` construction clarification (`verdict_artifact_ref` covers both IPFS CID and Nostr event ID forms); closing the `string recordPointer` vs inline struct question ("attestation frozen, record alive"); Appendix A verification against deployed code. Production reference implementation at [api.babyblueviper.com/ledger](https://api.babyblueviper.com/ledger) — running against real capital.
 
 ---
 
