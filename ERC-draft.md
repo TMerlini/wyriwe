@@ -314,9 +314,12 @@ struct JudgmentExecutionAttestation {
     bytes32 executedActionHash;  // keccak256(canonical executed-action record), revealed at settlement
     uint256 verdictTimestamp;    // verdict issuance — the commit, strictly pre-execution
     uint256 executedTimestamp;   // execution — the reveal
-    string  recordPointer;       // URI to the ledger entry; target MUST expose commitment and outcome
-                                 // evidence at separately addressable paths (pre-settlement: commitment
-                                 // only; post-settlement: both). Empty string if not yet anchored.
+    string  recordPointer;       // URI to the ledger entry. Standard sub-paths:
+                                 //   {recordPointer}/commitment — pre-settlement evidence
+                                 //     (signed verdict, relay anchor, judgment execution commitment)
+                                 //   {recordPointer}/outcome    — post-settlement evidence
+                                 //     (settlement account, signed outcome digests)
+                                 // Empty string if not yet anchored.
 }
 ```
 
@@ -338,7 +341,7 @@ Domain separator: `ERC8004AttestationGateway` / version `"1"` / `block.chainid` 
 
 3. **Canonicalization as verification step 3.** The executed action record never byte-equals the proposal (a fill has a price; a proposal has an intent), so the verdict artifact doubles as the conformance spec the verifier applies — exactly the role the sanitization spec CID plays in WYRIWE verification step 3. The unconditional-approve case degenerates to canonical field equality, which is the sentinel.
 
-4. **`recordPointer` and evidence separability.** The `recordPointer` target MUST keep commitment evidence and outcome evidence separately addressable. A verifier MUST be able to check commitment without outcome (pre-settlement: `verdictHash` + relay anchor) and outcome without re-deriving commitment (post-settlement: `executedActionHash` + on-chain settlement ref). Collapsing both into a single field would require re-deriving one to check the other, breaking the pre/post-settlement inspection boundary. `verify()` on the `IProofVerifier` attests to the *authenticity of the verdict* — that the EIP-712 signature binding is valid — not to the *soundness of the judgment*. Soundness is a property of the verdict artifact resolved through `verdictHash`, not of the attestation struct itself.
+4. **`recordPointer` and evidence separability.** The `recordPointer` target MUST keep commitment evidence and outcome evidence separately addressable via standard sub-paths: `{recordPointer}/commitment` returns pre-settlement evidence (signed verdict, relay anchor, judgment execution commitment); `{recordPointer}/outcome` returns post-settlement evidence (settlement account, signed outcome digests). A verifier MUST be able to check commitment without outcome (pre-settlement) and outcome without re-deriving commitment (post-settlement). A single combined document breaks this invariant: a dispute client cannot prove it did not inspect the outcome before evaluating the commitment. `verify()` on the `IProofVerifier` attests to the *authenticity of the verdict* — that the EIP-712 signature binding is valid — not to the *soundness of the judgment*. Soundness is a property of the verdict artifact resolved through `verdictHash`, not of the attestation struct itself. Reference implementation: `api.babyblueviper.com/ledger/{n}/commitment` and `api.babyblueviper.com/ledger/{n}/outcome`.
 
 **Honesty conventions from the reference implementation** (generalise to any producer):
 - Entries predating the wiring carry a partial block with `executed_action_hash: null` and an explicit `"not backfilled by design"` status. A commitment you did not make at the time is not one you get to manufacture later.
