@@ -279,17 +279,65 @@ The `snapshotRoot` is derived from rows of `(address contributor, uint256 score,
 
 Reference implementation: `POST /contributions/snapshot/freeze` in [ccip-router v0.6.0](https://github.com/Echo-Merlini/ccip-router).
 
-### L4 Judgment validator binding (pending — joint with @babyblueviper1)
+### L4 Judgment validator binding (@babyblueviper1)
 
-The same chain-of-custody question exists one layer up for judgment validators: `inputHash` commits to the exact proposed action reviewed, but nothing yet binds "action reviewed" to "action executed after verdict." The triple-hash shape is reusable:
+The same chain-of-custody question exists one layer up for judgment validators: `inputHash` commits to the exact proposed action reviewed, but nothing yet binds "action reviewed" to "action executed after verdict." The triple-hash shape maps slot-for-slot:
+
+| WYRIWE (L3, input provenance) | Judgment validator (L4, one layer up) |
+|---|---|
+| `rawInputHash` — what the user submitted | `rawProposalHash` — what the agent proposed |
+| `sanitizationPipelineHash` — public spec transforming raw → permitted | `verdictHash` — the judgment, including any conditions ("approve IF size halved") = the public spec transforming proposed → permitted |
+| `inputHash` — what the model actually received | `executedActionHash` — what was actually executed |
+| `IDENTITY_SENTINEL` — no-sanitization is a provable claim | unconditional approve — executed-as-reviewed is a provable claim, not an assumption |
+
+**Triple-hash construction:**
 
 ```
-proposedActionHash  = keccak256(proposed action payload)
-verdictHash         = keccak256(signed verdict struct)
-executedActionHash  = keccak256(abi.encode(proposedActionHash, verdictHash, validatorAddress))
+rawProposalHash    = keccak256(canonical_proposed_action)
+verdictHash        = keccak256(verdict_artifact_cid || rawProposalHash)
+executedActionHash = keccak256(canonical_executed_action_record)
 ```
 
-This section will be completed jointly with @babyblueviper1 once the judgment-validator type string and `IProofVerifier` integration are confirmed. The EIP-712 type definition, `claimType` tag, and OCP `commitment_proof` anchor will be added here.
+`verdictHash` binds to `rawProposalHash` — mirroring the sanitization-pipeline-hash construction — making verdict-shopping impossible: a verdict cannot be replayed against a different proposal than the one it judged.
+
+**EIP-712 struct:**
+
+```solidity
+struct JudgmentExecutionAttestation {
+    bytes32 agentId;             // ERC-8004 identity of the EXECUTING agent
+    address registry;            // ERC-8004 registry address
+    bytes32 validatorId;         // ERC-8004 identity of the judgment validator (zero-valued if off-registry, MUST NOT be omitted)
+    bytes32 rawProposalHash;     // keccak256(canonical proposed-action artifact, pre-review)
+    bytes32 verdictHash;         // keccak256(verdict_artifact_cid || rawProposalHash)
+    bytes32 executedActionHash;  // keccak256(canonical executed-action record), revealed at settlement
+    uint256 verdictTimestamp;    // verdict issuance — the commit, strictly pre-execution
+    uint256 executedTimestamp;   // execution — the reveal
+}
+```
+
+**Type string:**
+
+```
+JudgmentExecutionAttestation(bytes32 agentId,address registry,bytes32 validatorId,bytes32 rawProposalHash,bytes32 verdictHash,bytes32 executedActionHash,uint256 verdictTimestamp,uint256 executedTimestamp)
+```
+
+Domain separator: `ERC8004AttestationGateway` / version `"1"` / `block.chainid` — same convention as `WyriweAttestation`, composing in the same gateway without splitting verifier code paths.
+
+`proofSystem() = "attestation/judgment"`, `claimType = Judgment`.
+
+**Design notes:**
+
+1. **Signature roles.** Only one signature is required — the executing agent's attestor signs the EIP-712 digest at reveal time. The validator's own signature lives inside the verdict artifact that `verdictHash` pins, so validator authenticity is carried without a second signature field. This keeps the ERC-8274 layering clean: `IProofVerifier` authenticates the attestation; the verdict artifact authenticates the judgment.
+
+2. **Commit-reveal invariant.** `verdictTimestamp < executedTimestamp` MUST hold. The verdict artifact is published at commit time (relay-anchored in the reference implementation). The reviewed→executed gap closes by the same argument as WYRIWE's reviewed→input gap: the executor can only reveal an action whose hash matches what was committed and judged.
+
+3. **Canonicalization as verification step 3.** The executed action record never byte-equals the proposal (a fill has a price; a proposal has an intent), so the verdict artifact doubles as the conformance spec the verifier applies — exactly the role the sanitization spec CID plays in WYRIWE verification step 3. The unconditional-approve case degenerates to canonical field equality, which is the sentinel.
+
+**Honesty conventions from the reference implementation** (generalise to any producer):
+- Entries predating the wiring carry a partial block with `executed_action_hash: null` and an explicit `"not backfilled by design"` status. A commitment you did not make at the time is not one you get to manufacture later.
+- Where a production system records a single timestamp per governance cycle, `executedTimestamp` is `null` with an ordering note rather than a fabricated reveal time. The strict `verdictTimestamp < executedTimestamp` invariant belongs to the on-chain attestation; an off-chain production mapping should record what it actually measured.
+
+Reference implementation: [api.babyblueviper.com/ledger](https://api.babyblueviper.com/ledger) — live production ledger. Entry `/ledger/3` shows a pre-wiring partial block; new entries carry the full `judgment_execution` block. Running against real capital.
 
 ---
 
@@ -309,7 +357,7 @@ This section will be completed jointly with @babyblueviper1 once the judgment-va
 
 - **Jimmy Shi** — first external implementation of WYRIWE: WyriweVerifier for ERC-8274, wrapping the triple-hash scheme as an `IProofVerifier`. Co-author contributions include technical corrections to `inputHash` derivation (not keccak of the two hashes), `ATTESTATION_TYPEHASH` field names (`manifestHash→modelHash`, `agentId uint256→bytes32`, `timestamp uint64→uint256`), `block.chainid` dynamic requirement, and ERC-8274 `proofSystem = "attestation/wyriwe"` taxonomy placement.
 
-- **babyblueviper1** — production judgment validator operator. Contributions: `claimType` field concept (signed artifact must carry type tag independent of contract context); `codeMeasurement` MUST be absent for `claimType = Judgment` (attests assessment, not execution environment); `recordPointer` field structure (validator public key + pre-outcome signed timestamps + externally verifiable outcome evidence + `schemaVersion`); `verify()` semantic clarification (authenticates verdict, does not endorse soundness); Nostr relay anchoring as timestamp commitment primitive (aligns with OCP/ERC-8281 model).
+- **babyblueviper1** — production judgment validator operator. Contributions: `claimType` field concept (signed artifact must carry type tag independent of contract context); `codeMeasurement` MUST be absent for `claimType = Judgment` (attests assessment, not execution environment); `recordPointer` field structure; `verify()` semantic clarification (authenticates verdict, does not endorse soundness); Nostr relay anchoring as timestamp commitment primitive; complete `JudgmentExecutionAttestation` EIP-712 struct, triple-hash construction, and slot-for-slot WYRIWE mapping (L4 Composition section); production reference implementation at [api.babyblueviper.com/ledger](https://api.babyblueviper.com/ledger).
 
 ---
 
