@@ -135,6 +135,40 @@ Where `:inputHash` is the hex-encoded (no `0x` prefix) `inputHash` value. The re
 
 ---
 
+### 7. ClaimType Discriminator
+
+ERC-8274-compliant claim artifacts MUST carry a `claimType` field identifying the accountability model of the claim. This field is distinct from `proofSystem` and MUST NOT be conflated with it:
+
+- `proofSystem` belongs to the `IProofVerifier` contract path and has contract context. It identifies the cryptographic mechanism that authenticated the artifact.
+- `claimType` belongs inside the signed artifact and travels without that context. It identifies the accountability and dispute model.
+
+An off-chain consumer holding only the raw signed struct MUST be able to determine the accountability model without a registry lookup.
+
+```solidity
+enum ClaimType {
+    ReExecution,  // deterministic computation — objectively disputable
+    Attestation,  // authorized signer certifies a result
+    Judgment      // subjective assessment — accountable through track record / policy
+}
+```
+
+The fields answer different questions:
+
+- `proofSystem` answers: what cryptographic mechanism authenticated the artifact?
+- `claimType` answers: what kind of accountability model backs the claim?
+
+A `zk/sp1` proof system may back a `ReExecution` claim; `sig/eip712` is used for both `Attestation` and `Judgment` claims. The proof system alone does not determine the accountability model.
+
+| `claimType` | `proofSystem` examples | Accountability | Dispute surface |
+|---|---|---|---|
+| `ReExecution` | `zk/sp1`, `zk/ezkl`, `op/ora` | Mathematical / economic | Objectively disputable |
+| `Attestation` | `sig/eip712`, `attestation/wyriwe`, `attestation/multisig` | Signer authorization / stake / reputation | Signer registry or policy |
+| `Judgment` | `sig/eip712`, `attestation/judgment` | Track record / reputation / policy-defined stake | Pre-outcome commitment + later outcome evidence |
+
+A `WyriweAttestation` is an `Attestation`-class claim (`claimType = Attestation`). A `JudgmentExecutionAttestation` is a `Judgment`-class claim (`claimType = Judgment`). See Section 3 and the Composition section respectively.
+
+---
+
 ## Rationale
 
 ### Why three hashes?
@@ -323,6 +357,21 @@ struct JudgmentExecutionAttestation {
 }
 ```
 
+The `recordPointer` URI resolves to a record conforming to the following schema:
+
+```solidity
+struct RecordPointer {
+    bytes32 validatorId;      // ERC-8004 identity of the judgment validator
+    bytes32 registryType;     // keccak256 of type string: "evm/registry", "nostr/profile", "offchain/ledger"
+    bytes   registryRef;      // registry-specific locator (contract address, Nostr pubkey, URL, etc.)
+    bytes   commitmentProof;  // pre-settlement evidence — signed verdict, relay anchor, commit hash
+    bytes   outcomeEvidence;  // post-settlement evidence — settlement account, outcome digests
+                              // MAY be empty before settlement. Corresponds to {recordPointer}/outcome sub-path.
+}
+```
+
+`commitmentProof` and `outcomeEvidence` MUST remain separately resolvable (see design note 4). Collapsing them into a single field removes the ability to verify commitment integrity while the outcome is still open.
+
 **Type string:**
 
 ```
@@ -341,7 +390,19 @@ Domain separator: `ERC8004AttestationGateway` / version `"1"` / `block.chainid` 
 
 3. **Canonicalization as verification step 3.** The executed action record never byte-equals the proposal (a fill has a price; a proposal has an intent), so the verdict artifact doubles as the conformance spec the verifier applies — exactly the role the sanitization spec CID plays in WYRIWE verification step 3. The unconditional-approve case degenerates to canonical field equality, which is the sentinel.
 
-4. **`recordPointer` and evidence separability.** The `recordPointer` target MUST keep commitment evidence and outcome evidence separately addressable via standard sub-paths: `{recordPointer}/commitment` returns pre-settlement evidence (signed verdict, relay anchor, judgment execution commitment); `{recordPointer}/outcome` returns post-settlement evidence (settlement account, signed outcome digests). A verifier MUST be able to check commitment without outcome (pre-settlement) and outcome without re-deriving commitment (post-settlement). A single combined document breaks this invariant: a dispute client cannot prove it did not inspect the outcome before evaluating the commitment. `verify()` on the `IProofVerifier` attests to the *authenticity of the verdict* — that the EIP-712 signature binding is valid — not to the *soundness of the judgment*. Soundness is a property of the verdict artifact resolved through `verdictHash`, not of the attestation struct itself. Reference implementation: `api.babyblueviper.com/ledger/{n}/commitment` and `api.babyblueviper.com/ledger/{n}/outcome`.
+4. **`recordPointer`, evidence separability, and `verify()` semantics.** The `recordPointer` target MUST keep commitment evidence and outcome evidence separately addressable via standard sub-paths: `{recordPointer}/commitment` returns pre-settlement evidence (signed verdict, relay anchor, judgment execution commitment); `{recordPointer}/outcome` returns post-settlement evidence (settlement account, signed outcome digests). A verifier MUST be able to check commitment without outcome (pre-settlement) and outcome without re-deriving commitment (post-settlement). A single combined document breaks this invariant: a dispute client cannot prove it did not inspect the outcome before evaluating the commitment.
+
+   For `ClaimType.Judgment`, `verify() = true` means the verdict is authentically the validator's and correctly bound to the task inputs. It does NOT mean the judgment is sound, that the action should proceed, or that the verdict has been independently endorsed. A settlement contract that gates directly on the bool has confirmed authenticity — it has not endorsed the judgment. Verdict weight lives in the accountability record, not in the bool.
+
+   The three-layer accountability boundary:
+
+   ```
+   IProofVerifier  — authenticates the verdict (EIP-712 binding is valid)
+   IAgentVerifier  — checks validator authorization for the task
+   recordPointer   — carries accountability: track record + pre-outcome commitment
+   ```
+
+   Reference implementation: `api.babyblueviper.com/ledger/{n}/commitment` and `api.babyblueviper.com/ledger/{n}/outcome`.
 
 **Honesty conventions from the reference implementation** (generalise to any producer):
 - Entries predating the wiring carry a partial block with `executed_action_hash: null` and an explicit `"not backfilled by design"` status. A commitment you did not make at the time is not one you get to manufacture later.
@@ -360,12 +421,15 @@ Reference implementation: [api.babyblueviper.com/ledger](https://api.babybluevip
 - [ERC-8275](https://ethereum-magicians.org/t/erc-8275-agent-service-discovery-and-escrow-payments/28622) — Mesh Node Compensation (Panini)
 - [ERC-8281 / OCP](https://github.com/damonzwicker/observation-commitment-protocol) — Observation Commitment Protocol (Damon Zwicker)
 - [OCP Composition Note](https://gist.github.com/damonzwicker/8742e742bdc627b8e2179c00b81289dc) — L3+L4 AI inference attestation profile
+- [ERC-8274 Worked Example](https://gist.github.com/damonzwicker/b6bef149db0bb4faa390a760b516db51) — claimType field mapping, RecordPointer schema, and verify() semantics for judgment claims (Damon Zwicker)
 
 ---
 
 ## Acknowledgements
 
 - **Jimmy Shi** — first external implementation of WYRIWE: WyriweVerifier for ERC-8274, wrapping the triple-hash scheme as an `IProofVerifier`. Co-author contributions include technical corrections to `inputHash` derivation (not keccak of the two hashes), `ATTESTATION_TYPEHASH` field names (`manifestHash→modelHash`, `agentId uint256→bytes32`, `timestamp uint64→uint256`), `block.chainid` dynamic requirement, and ERC-8274 `proofSystem = "attestation/wyriwe"` taxonomy placement.
+
+- **Damon Zwicker** (@damonzwicker) — co-author. Contributions: `ClaimType` enum definition and proofSystem / claimType separation rationale (Section 7); `RecordPointer` typed schema formalizing the `commitmentProof` / `outcomeEvidence` distinction; `JudgmentVerificationCompleted` event definition; `verify()` three-layer accountability boundary for `ClaimType.Judgment`; OCP / ERC-8281 commitment discipline integration; ERC-8274 worked example gist.
 
 - **babyblueviper1** — production judgment validator operator. Contributions: `claimType` field concept (signed artifact must carry type tag independent of contract context); `codeMeasurement` MUST be absent for `claimType = Judgment` (attests assessment, not execution environment); `recordPointer` field structure; `verify()` semantic clarification (authenticates verdict, does not endorse soundness); Nostr relay anchoring as timestamp commitment primitive; complete `JudgmentExecutionAttestation` EIP-712 struct, triple-hash construction, and slot-for-slot WYRIWE mapping (L4 Composition section); production reference implementation at [api.babyblueviper.com/ledger](https://api.babyblueviper.com/ledger).
 
