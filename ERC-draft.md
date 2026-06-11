@@ -578,6 +578,7 @@ Ledger entry at `https://api.babyblueviper.com/ledger/19`:
 - [ERC-8275](https://ethereum-magicians.org/t/erc-8275-agent-service-discovery-and-escrow-payments/28622) — Mesh Node Compensation (Panini)
 - [ERC-8281 / OCP](https://github.com/damonzwicker/observation-commitment-protocol) — Observation Commitment Protocol (Damon Zwicker)
 - [OCP Composition Note](https://gist.github.com/damonzwicker/8742e742bdc627b8e2179c00b81289dc) — L3+L4 AI inference attestation profile
+- [Live AnchorProof interop tx](https://etherscan.io/tx/0xc32b66ae9446e0d5282a6fc813ba106126a8da05bced638b83840d9c2510e4d0) — ccip-router `commitmentHash` carried as `proofHash` in TruthAnchorV1 (ERC-8263), mainnet block 25289963. `agentIdScheme=1` (REGISTRY), `aux="ccip-router"`. Cross-reference: AttestationIndex `commitmentHash` in block 25289932.
 - [ERC-8274 Worked Example](https://gist.github.com/damonzwicker/b6bef149db0bb4faa390a760b516db51) — claimType field mapping, RecordPointer schema, and verify() semantics for judgment claims (Damon Zwicker)
 
 ---
