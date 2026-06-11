@@ -8,7 +8,7 @@ status: Draft
 type: Standards Track
 category: ERC
 created: 2026-05-28
-requires: 712, 8004, 8263
+requires: 712, 8004, 8263, 8274
 ---
 
 ## Abstract
@@ -49,7 +49,7 @@ input_hash                 = keccak256(sanitized_input)
 Where:
 
 - `raw_user_input` is the exact bytes of the user's input as received, before any transformation.
-- `sanitization_spec_cid` is the IPFS CID (as UTF-8 bytes) of the sanitization pipeline specification applied to the input.
+- `sanitization_spec_cid` is the full IPFS URI string including the `ipfs://` scheme prefix (e.g., `ipfs://QmTst97...`), serialized as UTF-8 bytes. The `ipfs://` prefix is part of the preimage and MUST be included.
 - `sanitized_input` is the exact bytes fed to the model after applying the sanitization pipeline.
 - `||` denotes byte concatenation.
 
@@ -69,6 +69,8 @@ input_hash                 = raw_input_hash
 ```
 ipfs://QmTst97dG8i9tFrutdetqMbVhSHqJGJaxMmPzWCcVVTWDU
 ```
+
+The content at this CID is normative and frozen — it defines the identity transform (no modification to the input). Implementations MUST pin this CID to ensure long-term verifiability. The content is reproduced in Appendix C for self-containment in the event of IPFS unavailability.
 
 The `input_hash == raw_input_hash` equality in the no-sanitization case is a provable on-chain claim, not an assumption. Implementations MUST NOT omit `sanitization_pipeline_hash` even when no sanitization is applied.
 
@@ -91,6 +93,14 @@ struct WyriweAttestation {
 
 All fields are REQUIRED. A conforming attestation MUST populate every field. `agentId` and `registry` MAY be zero-valued if the execution environment does not implement ERC-8004, but MUST NOT be omitted from the struct.
 
+The canonical EIP-712 type string for `WyriweAttestation` is:
+
+```
+WyriweAttestation(bytes32 agentId,address registry,bytes32 modelHash,bytes32 rawInputHash,bytes32 sanitizationPipelineHash,bytes32 inputHash,bytes32 outputHash,uint256 timestamp)
+```
+
+Field ordering is as declared in the struct above and is normative. EIP-712 encoding is order-sensitive — a type string with fields in any other order produces a different `typeHash` and MUST NOT be used.
+
 **ERC-8274 claim classification:** A `WyriweAttestation` is an `attestation`-class claim. In ERC-8274 terminology, the corresponding `IProofVerifier` SHOULD return `proofSystem() = "attestation/wyriwe"`. When wrapped in an ERC-8274 outer claim container, `claimType` SHOULD be set to `Attestation`. The EIP-712 type string acts as the on-chain schema discriminator; `claimType` serves off-chain consumers (indexers, explorers, dispute interfaces) that read the raw signed struct without calling the verifier contract.
 
 Note: `modelHash` commits to the model weights or manifest — what model ran. This is distinct from a TEE `codeMeasurement`, which commits to the execution environment. WYRIWE operates at the input-provenance layer, not the execution environment layer. For execution environment attestations, see ERC-8274 `tee/*` proof systems.
@@ -109,13 +119,13 @@ EIP712Domain({
 
 `chainId` MUST use the chain ID of the network on which the attestation is produced (`block.chainid` in Solidity). A hardcoded value is NOT permitted — doing so prevents the domain separator from distinguishing attestations produced on different chains and breaks replay protection in multi-chain deployments.
 
-The `l4_signature` is an `eth_sign` signature over the EIP-712 digest of the `WyriweAttestation` struct, produced by the gateway attestor.
+The `signature` is produced via `eth_signTypedData_v4` over the EIP-712 digest of the `WyriweAttestation` struct, yielding a 65-byte `(r, s, v)` ECDSA signature recovered against the attestor address. Note: `eth_signTypedData_v4` (EIP-712) is distinct from `eth_sign` — using `eth_sign` applies the `\x19Ethereum Signed Message` prefix, which would break on-chain `ecrecover` verification of the 712 digest and MUST NOT be used.
 
 ### 5. Verification Procedure
 
 A verifier MUST execute the following steps to accept a WYRIWE attestation as valid:
 
-1. Recompute the EIP-712 digest from the attestation struct fields and verify `l4_signature` against the known attestor address.
+1. Recompute the EIP-712 digest from the attestation struct fields and verify `signature` against the known attestor address.
 2. Verify `rawInputHash == keccak256(raw_user_input)` if the raw input is available.
 3. Fetch the sanitization specification at `sanitization_spec_cid` and apply it to `raw_user_input`; verify the result hashes to `inputHash`.
 4. If `sanitization_spec_cid == IDENTITY_SENTINEL_CID`, verify `inputHash == rawInputHash`.
@@ -131,7 +141,7 @@ A conforming gateway MUST expose the following HTTP endpoint:
 GET /agent/verify/:inputHash
 ```
 
-Where `:inputHash` is the hex-encoded (no `0x` prefix) `inputHash` value. The response MUST be a JSON object containing the `WyriweAttestation` fields and the `l4_signature`. The response MUST use HTTP 200 on success and HTTP 404 when no attestation exists for the given `inputHash`.
+Where `:inputHash` is the lowercase hex-encoded (no `0x` prefix) `inputHash` value. The response MUST be a JSON object containing the `WyriweAttestation` fields and the `signature`. The response MUST use HTTP 200 on success and HTTP 404 when no attestation exists for the given `inputHash`.
 
 ---
 
@@ -271,11 +281,15 @@ Source code: https://github.com/Echo-Merlini/ccip-router
 
 ### Attestor key compromise
 
-The `l4_signature` is only as trustworthy as the attestor's private key. Implementations that use WYRIWE attestations for settlement or dispute resolution SHOULD maintain an on-chain registry of authorised attestor addresses and support key rotation. A compromised attestor key allows forged attestations but does not break the hash commitments — a forged attestation for a hash with no matching input still cannot produce a valid preimage.
+The `signature` is only as trustworthy as the attestor's private key. Implementations that use WYRIWE attestations for settlement or dispute resolution SHOULD maintain an on-chain registry of authorised attestor addresses and support key rotation. A compromised attestor key allows forged attestations but does not break the hash commitments — a forged attestation for a hash with no matching input still cannot produce a valid preimage.
 
 ### Hash collision resistance
 
 WYRIWE relies on keccak256 collision resistance. No practical collision attacks against keccak256 are known. If keccak256 is broken, all three hashes are affected equally; the triple-hash construction does not introduce additional collision surface.
+
+### Adversarial sanitization specification
+
+WYRIWE proves faithful application of a declared transform, not that the transform is benign. A gateway that publishes a sanitization specification designed to rewrite inputs maliciously (e.g., replacing a transfer amount or destination address) can commit to the application of that spec faithfully while still exploiting the caller. The scheme makes the transform fully auditable and attributable — any observer can fetch the spec at the committed CID and verify it was applied correctly — but semantic safety of the specification is a consumer responsibility, not a WYRIWE guarantee. Implementations that accept arbitrary sanitization spec CIDs SHOULD enforce an allow-list of approved CIDs. End users SHOULD verify the sanitization spec at the committed CID before trusting a result.
 
 ### Sanitization spec CID stability
 
