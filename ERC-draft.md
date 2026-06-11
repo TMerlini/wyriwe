@@ -49,7 +49,7 @@ input_hash                 = keccak256(sanitized_input)
 Where:
 
 - `raw_user_input` is the exact bytes of the user's input as received, before any transformation.
-- `sanitization_spec_cid` is the full IPFS URI string including the `ipfs://` scheme prefix (e.g., `ipfs://QmTst97...`), serialized as UTF-8 bytes. The `ipfs://` prefix is part of the preimage and MUST be included.
+- `sanitization_spec_cid` is the full IPFS URI string including the `ipfs://` scheme prefix (e.g., `ipfs://QmccvoM6aRVg...`), serialized as UTF-8 bytes. The `ipfs://` prefix is part of the preimage and MUST be included.
 - `sanitized_input` is the exact bytes fed to the model after applying the sanitization pipeline.
 - `||` denotes byte concatenation.
 
@@ -67,7 +67,7 @@ input_hash                 = raw_input_hash
 `IDENTITY_SENTINEL_CID` is a stable IPFS reference to the identity-transform specification:
 
 ```
-ipfs://QmTst97dG8i9tFrutdetqMbVhSHqJGJaxMmPzWCcVVTWDU
+ipfs://QmccvoM6aRVgZ2dtFWvT6Wm3DmTvoAUHHotK7uQufnStVR
 ```
 
 The content at this CID is normative and frozen — it defines the identity transform (no modification to the input). Implementations MUST pin this CID to ensure long-term verifiability. The content is reproduced in Appendix C for self-containment in the event of IPFS unavailability.
@@ -220,7 +220,7 @@ This ERC introduces a new standard with no dependencies on or conflicts with exi
 ```
 raw_user_input             = "transfer 1 ETH to 0xABCD..."
 raw_input_hash             = keccak256("transfer 1 ETH to 0xABCD...")
-sanitization_spec_cid      = "ipfs://QmTst97dG8i9tFrutdetqMbVhSHqJGJaxMmPzWCcVVTWDU"
+sanitization_spec_cid      = "ipfs://QmccvoM6aRVgZ2dtFWvT6Wm3DmTvoAUHHotK7uQufnStVR"
 sanitization_pipeline_hash = keccak256(sanitization_spec_cid_bytes || raw_input_hash)
 sanitized_input            = raw_user_input
 input_hash                 = raw_input_hash
@@ -585,7 +585,7 @@ Ledger entry at `https://api.babyblueviper.com/ledger/19`:
 
 ## Appendix C — Identity-Transform Specification (IDENTITY_SENTINEL_CID)
 
-This appendix reproduces the normative content of the identity-transform specification pinned at `ipfs://QmTst97dG8i9tFrutdetqMbVhSHqJGJaxMmPzWCcVVTWDU`. It is included here so the standard is self-contained in the event of IPFS unavailability. The content at the CID MUST match this text exactly. Any discrepancy between the pinned CID and this appendix is an error in the pinned content, not in this document.
+This appendix reproduces the normative content of the identity-transform specification pinned at `ipfs://QmccvoM6aRVgZ2dtFWvT6Wm3DmTvoAUHHotK7uQufnStVR`. It is included here so the standard is self-contained in the event of IPFS unavailability. The content at the CID MUST match this text exactly. Any discrepancy between the pinned CID and this appendix is an error in the pinned content, not in this document.
 
 ```json
 {
@@ -604,7 +604,7 @@ This appendix reproduces the normative content of the identity-transform specifi
 }
 ```
 
-The CID was derived from the above JSON content (UTF-8 encoded, no trailing newline) using the IPFS CIDv0 (SHA2-256 multihash) algorithm. Implementations that re-derive the CID from this content MUST produce `QmTst97dG8i9tFrutdetqMbVhSHqJGJaxMmPzWCcVVTWDU`.
+The CID was derived from the above JSON content (UTF-8 encoded, no trailing newline) using the IPFS CIDv0 (SHA2-256 multihash) algorithm. Implementations that re-derive the CID from this content MUST produce `QmccvoM6aRVgZ2dtFWvT6Wm3DmTvoAUHHotK7uQufnStVR`.
 
 ---
 
