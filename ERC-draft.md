@@ -1,5 +1,5 @@
 ---
-eip: XXXX
+eip: 11796
 title: WYRIWE — What You Read Is What You Execute
 description: An input-provenance commitment scheme and attestation profile for verifiable AI agent inference
 author: Tiago Merlini (@TMerlini), Vincent Wu (@TruthAnchor-AI), Damon Zwicker (@damonzwicker), Jimmy Shi (@JimmyShi22), babyblueviper1 (@babyblueviper1)
@@ -8,7 +8,7 @@ status: Draft
 type: Standards Track
 category: ERC
 created: 2026-05-28
-requires: 712, 8004, 8263, 8274
+requires: 712, 8004
 ---
 
 ## Abstract
