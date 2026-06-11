@@ -583,6 +583,31 @@ Ledger entry at `https://api.babyblueviper.com/ledger/19`:
 
 ---
 
+## Appendix C — Identity-Transform Specification (IDENTITY_SENTINEL_CID)
+
+This appendix reproduces the normative content of the identity-transform specification pinned at `ipfs://QmTst97dG8i9tFrutdetqMbVhSHqJGJaxMmPzWCcVVTWDU`. It is included here so the standard is self-contained in the event of IPFS unavailability. The content at the CID MUST match this text exactly. Any discrepancy between the pinned CID and this appendix is an error in the pinned content, not in this document.
+
+```json
+{
+  "name": "identity-transform",
+  "version": "1",
+  "description": "The identity sanitization pipeline. No modification is applied to the input. The sanitized output is identical to the raw input byte-for-byte.",
+  "transform": "none",
+  "input": "raw_user_input (bytes, unmodified)",
+  "output": "raw_user_input (bytes, identical to input)",
+  "invariants": [
+    "sanitized_input == raw_user_input",
+    "input_hash == raw_input_hash",
+    "sanitization_pipeline_hash == keccak256(IDENTITY_SENTINEL_CID_bytes || raw_input_hash)"
+  ],
+  "notes": "Use this CID when no sanitization is applied. The input_hash == raw_input_hash equality is a provable on-chain claim. Implementations MUST NOT substitute any other CID to represent the no-sanitization case."
+}
+```
+
+The CID was derived from the above JSON content (UTF-8 encoded, no trailing newline) using the IPFS CIDv0 (SHA2-256 multihash) algorithm. Implementations that re-derive the CID from this content MUST produce `QmTst97dG8i9tFrutdetqMbVhSHqJGJaxMmPzWCcVVTWDU`.
+
+---
+
 ## References
 
 - [ERC-8004](https://ethereum-magicians.org/t/erc-8004-trustless-agents/25098) — Verified Node Identity (agent identity layer)
